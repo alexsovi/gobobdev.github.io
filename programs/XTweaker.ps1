@@ -18,7 +18,7 @@ function Add-DefenderExclusion {
     try {
         Start-Process -FilePath "powershell" -ArgumentList "-Command `"Add-MpPreference -ExclusionPath '$path'`"" -Verb RunAs -Wait
     } catch {
-        Write-Host "[ERROR] File ExclusionPath Add (MS Defender) failed: $_"
+        Write-Log "File ExclusionPath Add (MS Defender) failed: $_"
         exit 1
     }
 }
@@ -30,7 +30,7 @@ function Remove-DefenderExclusion {
     try {
         Start-Process -FilePath "powershell" -ArgumentList "-Command `"Remove-MpPreference -ExclusionPath '$path'`"" -Verb RunAs -Wait
     } catch {
-        Write-Host "[ERROR] File ExclusionPath Removing (MS Defender) failed: $_"
+        Write-Log "File ExclusionPath Removing (MS Defender) failed: $_"
     }
 }
 
@@ -47,7 +47,7 @@ function Is-JavaInstalled {
         Get-Command java -ErrorAction Stop
         return $true
     } catch {
-        Write-Log "Searching if Java installed..."
+        Write-Log "Java not found in PATH. Checking registry..."
         # Check registry for Java installation
         $javaRegistryPath = "HKLM:\SOFTWARE\JavaSoft\Java Runtime Environment"
         if (Test-Path $javaRegistryPath) {
@@ -59,8 +59,8 @@ function Is-JavaInstalled {
 }
 
 if (-not (Test-Admin)) {
-    Write-Host "[ERROR] You need to run PowerShell as Administrator!"
-    Write-Host " -> Press any key to exit."
+    Write-Log "You need to run PowerShell as Administrator!"
+    Write-Log "Press any key to exit."
     $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
     exit 1
 }
@@ -76,11 +76,13 @@ try {
     Write-Log "Downloading XTweaker..."
     Invoke-WebRequest -Uri $url -OutFile $filename -ErrorAction Stop
 
+    Write-Log "Searching if Java installed..."
     if (-not (Is-JavaInstalled)) {
         Write-Log "Java not installed. Downloading Java Runtime..."
         Invoke-WebRequest -Uri $urlJava -OutFile $filenameJava -ErrorAction Stop
 
         Write-Log "Installing Java Runtime..."
+        # Use the silent flag for installation
         Start-Process -FilePath $filenameJava -ArgumentList '/s' -Verb RunAs -Wait
 
         # Clean up Java installer
@@ -103,7 +105,7 @@ try {
     $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
 
 } catch {
-    Write-Host "[ERROR] Error code: $_"
-    Write-Host " -> Press any key to exit."
+    Write-Log "Error occurred: $_"
+    Write-Log "Press any key to exit."
     $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
 }
