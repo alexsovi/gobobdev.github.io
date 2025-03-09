@@ -1,7 +1,27 @@
 $tempPath = "C:\Program Files\GoBobDev\XTweaker\Temp"
 $filename = Join-Path -Path $tempPath -ChildPath "XTweakerSetup.exe"
 $url = "https://github.com/GoBobDev/XTweaker/releases/latest/download/XTweakerSetup.exe"
-$urlJava = "https://javadl.oracle.com/webapps/download/AutoDL?BundleId=249831_89d678f2be164786b292527658ca1605" # Latest Java link
+
+# URLs for Java installers based on system architecture
+$urlJava64 = "https://softslot.ru/d28bc0c/system/other/jre-8u144-windows-x64.exe"
+$urlJava32 = "https://softslot.ru/d28bc0c/system/other/jre-8u144-windows-i586.exe"
+
+# Determine system architecture
+function Get-SystemArchitecture {
+    if ([Environment]::Is64BitOperatingSystem) {
+        return "64-bit"
+    } else {
+        return "32-bit"
+    }
+}
+
+$architecture = Get-SystemArchitecture
+if ($architecture -eq "64-bit") {
+    $urlJava = $urlJava64
+} else {
+    $urlJava = $urlJava32
+}
+
 $filenameJava = Join-Path -Path $tempPath -ChildPath "JavaRuntimeSetup.exe"
 
 function Write-Log {
@@ -76,9 +96,10 @@ try {
     Write-Log "Downloading XTweaker..."
     Invoke-WebRequest -Uri $url -OutFile $filename -ErrorAction Stop
 
+    Write-Log "System architecture detected: $architecture"
     Write-Log "Searching if Java installed..."
     if (-not (Is-JavaInstalled)) {
-        Write-Log "Java not installed. Downloading Java Runtime..."
+        Write-Log "Java not installed. Downloading Java Runtime for $architecture..."
         Invoke-WebRequest -Uri $urlJava -OutFile $filenameJava -ErrorAction Stop
 
         Write-Log "Installing Java Runtime..."
