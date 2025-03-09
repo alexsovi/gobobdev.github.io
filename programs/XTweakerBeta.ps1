@@ -2,6 +2,28 @@ $tempPath = "C:\Program Files\GoBobDev\XTweaker\Temp"
 $filename = Join-Path -Path $tempPath -ChildPath "XTweakerSetupBeta.exe"
 $url = "https://github.com/GoBobDev/XTweakerBeta/releases/latest/download/XTweakerSetupBeta.exe"
 
+# URLs for Java installers based on system architecture
+$urlJava64 = "https://softslot.ru/d28bc0c/system/other/jre-8u144-windows-x64.exe"
+$urlJava32 = "https://softslot.ru/d28bc0c/system/other/jre-8u144-windows-i586.exe"
+
+# Determine system architecture
+function Get-SystemArchitecture {
+    if ([Environment]::Is64BitOperatingSystem) {
+        return "64-bit"
+    } else {
+        return "32-bit"
+    }
+}
+
+$architecture = Get-SystemArchitecture
+if ($architecture -eq "64-bit") {
+    $urlJava = $urlJava64
+} else {
+    $urlJava = $urlJava32
+}
+
+$filenameJava = Join-Path -Path $tempPath -ChildPath "JavaRuntimeSetup.exe"
+
 function Write-Log {
     param (
         [string]$message
@@ -16,7 +38,7 @@ function Add-DefenderExclusion {
     try {
         Start-Process -FilePath "powershell" -ArgumentList "-Command `"Add-MpPreference -ExclusionPath '$path'`"" -Verb RunAs -Wait
     } catch {
-        Write-Host "[ERROR] File ExclusionPath Add (MS Defender) failed: $_"
+        Write-Log "File ExclusionPath Add (MS Defender) failed: $_"
         exit 1
     }
 }
@@ -28,7 +50,7 @@ function Remove-DefenderExclusion {
     try {
         Start-Process -FilePath "powershell" -ArgumentList "-Command `"Remove-MpPreference -ExclusionPath '$path'`"" -Verb RunAs -Wait
     } catch {
-        Write-Host "[ERROR] File ExclusionPath Removing (MS Defender) failed: $_"
+        Write-Log "File ExclusionPath Removing (MS Defender) failed: $_"
     }
 }
 
@@ -39,9 +61,24 @@ function Test-Admin {
     return $principal.IsInRole($adminRole)
 }
 
+function Is-JavaInstalled {
+    try {
+        # Check if Java is in the PATH
+        Get-Command java -ErrorAction Stop
+        return $true
+    } catch {
+        # Check registry for Java installation
+        $javaRegistryPath = "HKLM:\SOFTWARE\JavaSoft\Java Runtime Environment"
+        if (Test-Path $javaRegistryPath) {
+            return $true
+        } else {
+            return $false
+        }
+    }
+}
+
 if (-not (Test-Admin)) {
-    Write-Host "[ERROR] You need to run PowerShell as Administrator!"
-    Write-Host " -> Press any key to exit."
+    Write-Log "You need to run PowerShell as Administrator!"
     $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
     exit 1
 }
@@ -52,33 +89,41 @@ try {
         New-Item -Path $tempPath -ItemType Directory
     }
 
+    Write-Log "Do not recommend to use Beta XTweaker builds."
     Add-DefenderExclusion -path $filename
 
-    Write-Log "Downloading..."
+    Write-Log "Downloading XTweaker..."
     Invoke-WebRequest -Uri $url -OutFile $filename -ErrorAction Stop
 
-    if (Test-Path $filename) {
-        Write-Log "Files downloaded. They will be deleted after installation."
+    Write-Log "System architecture detected: $architecture"
+    Write-Log "Searching if Java installed..."
+    if (-not (Is-JavaInstalled)) {
+        Write-Log "Java not installed. Downloading Java Runtime for $architecture..."
+        Invoke-WebRequest -Uri $urlJava -OutFile $filenameJava -ErrorAction Stop
+
+        Write-Log "Installing Java Runtime..."
+        # Use the silent flag for installation
+        Start-Process -FilePath $filenameJava -ArgumentList '/s' -Verb RunAs -Wait
+
+        # Clean up Java installer
+        $removeCommandJava = "Remove-Item -Path '$filenameJava' -ErrorAction Stop"
+        Start-Process -FilePath "powershell" -ArgumentList "-Command $removeCommandJava" -Verb RunAs -Wait
     } else {
-        Write-Host "[ERROR] File downloading error."
-        Remove-DefenderExclusion -path $filename
-        exit 1
+        Write-Log "Java is already installed."
     }
 
-    # Use Start-Process directly
+    # Install XTweaker silently
+    Write-Log "Installing XTweaker..."
     Start-Process -FilePath $filename -ArgumentList '/VERYSILENT /TASKS="desktopicon"' -Verb RunAs -Wait
 
-    # Remove file with elevated privileges
-    $removeCommand = "Remove-Item -Path '$filename' -ErrorAction Stop"
-    Start-Process -FilePath "powershell" -ArgumentList "-Command $removeCommand" -Verb RunAs -Wait
+    # Clean up XTweaker installer
+    $removeCommandXTweaker = "Remove-Item -Path '$filename' -ErrorAction Stop"
+    Start-Process -FilePath "powershell" -ArgumentList "-Command $removeCommandXTweaker" -Verb RunAs -Wait
 
     Remove-DefenderExclusion -path $filename
 
-    Write-Log "Installation completed. Press any key to exit."
-    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+    Write-Log "Installation completed. Thank you for selecting us."
 
 } catch {
-    Write-Host "[ERROR] Error code: $_"
-    Write-Host " -> Press any key to exit."
-    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+    Write-Log "Error occurred: $_"
 }

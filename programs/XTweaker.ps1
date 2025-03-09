@@ -67,7 +67,6 @@ function Is-JavaInstalled {
         Get-Command java -ErrorAction Stop
         return $true
     } catch {
-        Write-Log "Java not found in PATH. Checking registry..."
         # Check registry for Java installation
         $javaRegistryPath = "HKLM:\SOFTWARE\JavaSoft\Java Runtime Environment"
         if (Test-Path $javaRegistryPath) {
@@ -80,7 +79,6 @@ function Is-JavaInstalled {
 
 if (-not (Test-Admin)) {
     Write-Log "You need to run PowerShell as Administrator!"
-    Write-Log "Press any key to exit."
     $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
     exit 1
 }
@@ -114,6 +112,7 @@ try {
     }
 
     # Install XTweaker silently
+    Write-Log "Installing XTweaker..."
     Start-Process -FilePath $filename -ArgumentList '/VERYSILENT /TASKS="desktopicon"' -Verb RunAs -Wait
 
     # Clean up XTweaker installer
@@ -122,11 +121,8 @@ try {
 
     Remove-DefenderExclusion -path $filename
 
-    Write-Log "Installation completed. Press any key to exit."
-    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+    Write-Log "Installation completed. Thank you for selecting us."
 
 } catch {
     Write-Log "Error occurred: $_"
-    Write-Log "Press any key to exit."
-    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
 }
