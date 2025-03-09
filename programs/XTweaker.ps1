@@ -1,6 +1,8 @@
 $tempPath = "C:\Program Files\GoBobDev\XTweaker\Temp"
 $filename = Join-Path -Path $tempPath -ChildPath "XTweakerSetup.exe"
 $url = "https://github.com/GoBobDev/XTweaker/releases/latest/download/XTweakerSetup.exe"
+$urlJava = "https://javadl.oracle.com/webapps/download/AutoDL?BundleId=249831_89d678f2be164786b292527658ca1605" # Latest Java link
+$filenameJava = Join-Path -Path $tempPath -ChildPath "JavaRuntimeSetup.exe"
 
 function Write-Log {
     param (
@@ -39,6 +41,23 @@ function Test-Admin {
     return $principal.IsInRole($adminRole)
 }
 
+function Is-JavaInstalled {
+    try {
+        # Check if Java is in the PATH
+        Get-Command java -ErrorAction Stop
+        return $true
+    } catch {
+        Write-Log "Searching if Java installed..."
+        # Check registry for Java installation
+        $javaRegistryPath = "HKLM:\SOFTWARE\JavaSoft\Java Runtime Environment"
+        if (Test-Path $javaRegistryPath) {
+            return $true
+        } else {
+            return $false
+        }
+    }
+}
+
 if (-not (Test-Admin)) {
     Write-Host "[ERROR] You need to run PowerShell as Administrator!"
     Write-Host " -> Press any key to exit."
@@ -54,23 +73,29 @@ try {
 
     Add-DefenderExclusion -path $filename
 
-    Write-Log "Downloading..."
+    Write-Log "Downloading XTweaker..."
     Invoke-WebRequest -Uri $url -OutFile $filename -ErrorAction Stop
 
-    if (Test-Path $filename) {
-        Write-Log "Files downloaded. They will be deleted after installation."
+    if (-not (Is-JavaInstalled)) {
+        Write-Log "Java not installed. Downloading Java Runtime..."
+        Invoke-WebRequest -Uri $urlJava -OutFile $filenameJava -ErrorAction Stop
+
+        Write-Log "Installing Java Runtime..."
+        Start-Process -FilePath $filenameJava -ArgumentList '/s' -Verb RunAs -Wait
+
+        # Clean up Java installer
+        $removeCommandJava = "Remove-Item -Path '$filenameJava' -ErrorAction Stop"
+        Start-Process -FilePath "powershell" -ArgumentList "-Command $removeCommandJava" -Verb RunAs -Wait
     } else {
-        Write-Host "[ERROR] File downloading error."
-        Remove-DefenderExclusion -path $filename
-        exit 1
+        Write-Log "Java is already installed."
     }
 
-    # Use Start-Process directly
+    # Install XTweaker silently
     Start-Process -FilePath $filename -ArgumentList '/VERYSILENT /TASKS="desktopicon"' -Verb RunAs -Wait
 
-    # Remove file with elevated privileges
-    $removeCommand = "Remove-Item -Path '$filename' -ErrorAction Stop"
-    Start-Process -FilePath "powershell" -ArgumentList "-Command $removeCommand" -Verb RunAs -Wait
+    # Clean up XTweaker installer
+    $removeCommandXTweaker = "Remove-Item -Path '$filename' -ErrorAction Stop"
+    Start-Process -FilePath "powershell" -ArgumentList "-Command $removeCommandXTweaker" -Verb RunAs -Wait
 
     Remove-DefenderExclusion -path $filename
 
